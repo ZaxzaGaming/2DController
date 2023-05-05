@@ -5,6 +5,7 @@ using Unity.VisualScripting;
 using UnityEditor.Rendering.LookDev;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 using static ItemData;
 using static UnityEngine.Rendering.DebugUI;
 
@@ -20,6 +21,9 @@ public class Player : MonoBehaviour
     public Animator Anim { get; private set; }
     public InputHandler InputHandler { get; private set; }
     public Magnet Magnet { get; private set; }
+    public SpriteRenderer Renderer { get; private set; }
+
+    private Knockback knockback;
 
     #endregion
 
@@ -37,12 +41,14 @@ public class Player : MonoBehaviour
     public bool IsGrounded { get; private set; }
     public bool InAir { get; set; }
     public bool CanClimb { get; private set; }
+    public bool Attacking { get; set; }
 
     //Timers (also all fields, could be private and a method returning a bool could be used)
     public float LastOnGroundTime { get; private set; }
     public float LastOnWallTime { get; private set; }
     public float LastOnWallRightTime { get; private set; }
     public float LastOnWallLeftTime { get; private set; }
+
 
 
     //Jump
@@ -60,10 +66,16 @@ public class Player : MonoBehaviour
     private bool _dashRefilling;
     private Vector2 _lastDashDir;
     private bool _isDashAttacking;
-    private bool canDoubleJump = false;
-    private bool canTripleJump = false;
+    private bool canDoubleJump;
+    private bool canTripleJump;
 
     [Header("Abilities")]
+    public bool canMove;
+    public bool canRun;
+    public bool canJump;
+    public bool canAttack;
+    private bool canFall;
+    public int jumpNo = 0;
     public bool doubleJumpAbility;
     public bool tripleJumpAbility;
     public bool wallJumpAbility;
@@ -84,10 +96,15 @@ public class Player : MonoBehaviour
     private Vector2 climbOverPosition;
     private bool canGrabLedge = true;
 
+    [Header("Game Settings")]
+    public bool checkpointSpawning;
+    [HideInInspector] public bool isSafe;
+
     #endregion
 
     #region INPUT PARAMETERS
-    private Vector2 _moveInput;
+    [HideInInspector]public float moveInputX;
+    [HideInInspector] public float moveInputY;
 
     public float LastPressedJumpTime { get; private set; }
     public float LastPressedDashTime { get; private set; }
@@ -116,12 +133,14 @@ public class Player : MonoBehaviour
 
     private void Awake()
     {
-        Core = GetComponentInChildren<Core> ();
+        Core = GetComponentInChildren<Core>();
         Anim = GetComponent<Animator>();
         RB = GetComponent<Rigidbody2D>();
         InputHandler = GetComponent<InputHandler>();
         Magnet = GetComponentInChildren<Magnet>();
-        
+        Renderer = GetComponent<SpriteRenderer>();
+        knockback = GetComponent<Knockback>();
+
     }
 
     private void Start()
@@ -130,15 +149,19 @@ public class Player : MonoBehaviour
         fallSpeedYDampingChangeThreshold = CameraManager.instance.fallSpeedDampeningChangeThreshold;
         SetGravityScale(Data.gravityScale);
         IsFacingRight = true;
+        canMove = true;
+        canRun = true;
+        canJump = true;
+        canAttack = true;
     }
-    
+
     private void Update()
     {
-        if(RB.velocity.y < fallSpeedYDampingChangeThreshold && !CameraManager.instance.IsLerpingYDamping && !CameraManager.instance.LerpedFromPlayerFalling)
+        if (RB.velocity.y < fallSpeedYDampingChangeThreshold && !CameraManager.instance.IsLerpingYDamping && !CameraManager.instance.LerpedFromPlayerFalling)
         {
             CameraManager.instance.LerpYDamping(true);
         }
-        if(RB.velocity.y >= 0f && !CameraManager.instance.IsLerpingYDamping && CameraManager.instance.LerpedFromPlayerFalling)
+        if (RB.velocity.y >= 0f && !CameraManager.instance.IsLerpingYDamping && CameraManager.instance.LerpedFromPlayerFalling)
         {
             CameraManager.instance.LerpedFromPlayerFalling = false;
             CameraManager.instance.LerpYDamping(false);
@@ -157,31 +180,12 @@ public class Player : MonoBehaviour
         #endregion
 
         #region INPUT HANDLER
-        _moveInput.x = InputHandler.RawMovementInput.x;
-
-        _moveInput.y = InputHandler.RawMovementInput.y;
-
-        if (InputHandler.JumpInput)
+        if (!knockback.IsBeingKnockedBack)
         {
-            InputHandler.UseJumpInput();
-            OnJumpInput();
+        Move(canMove, canRun);
+        Jump(canJump);
         }
-
-        if (InputHandler.JumpInputStop)
-        {
-            InputHandler.UseJumpInput();
-            OnJumpUpInput();
-        }
-
-        if (InputHandler.DashInput)
-        {
-            InputHandler.UseDashInput();
-            OnDashInput();
-        }
-        if (InputHandler.GlideInput)
-        {
-            OnGlideInput();
-        }
+        Dash(dashAbility);
         #endregion
 
         #region COLLISION CHECKS
@@ -220,7 +224,6 @@ public class Player : MonoBehaviour
         if (IsJumping && RB.velocity.y < 0)
         {
             IsJumping = false;
-
             if (!IsWallJumping && !IsGliding)
                 _isJumpFalling = true;
         }
@@ -233,6 +236,7 @@ public class Player : MonoBehaviour
         if (LastOnGroundTime > 0 && !IsJumping && !IsWallJumping)
         {
             IsGrounded = true;
+            jumpNo = 0;
             IsGliding = false;
             _isJumpCut = false;
 
@@ -259,20 +263,21 @@ public class Player : MonoBehaviour
             //Jump
             if (CanJump() && LastPressedJumpTime > 0 && IsGrounded)
             {
-                Debug.Log("Jump");
+                jumpNo++;
                 IsJumping = true;
                 IsWallJumping = false;
                 _isJumpCut = false;
                 _isJumpFalling = false;
                 _isFastFalling = false;
-                if (doubleJumpAbility)
+                if (doubleJumpAbility && LastOnWallTime < -0.9f)
                 {
                     canDoubleJump = true;
                 }
-                Jump(Data.jumpForce);
+                JumpAbility(Data.jumpForce);
             }
             else if (canDoubleJump && LastPressedJumpTime > 0 && !IsJumping && !IsGrounded)
             {
+                jumpNo++;
                 canDoubleJump = false;
                 IsJumping = true;
                 IsWallJumping = false;
@@ -283,17 +288,18 @@ public class Player : MonoBehaviour
                 {
                     canTripleJump = true;
                 }
-                Jump(Data.doubleJumpForce);
+                JumpAbility(Data.doubleJumpForce);
             }
             else if (canTripleJump && LastPressedJumpTime > 0 && !IsJumping && !IsGrounded)
             {
+                jumpNo++;
                 canTripleJump = false;
                 IsJumping = true;
                 IsWallJumping = false;
                 _isJumpCut = false;
                 _isJumpFalling = false;
                 _isFastFalling = false;
-                Jump(Data.tripleJumpForce);
+                JumpAbility(Data.tripleJumpForce);
             }
             //WALL JUMP
             else if (CanWallJump() && LastPressedJumpTime > 0 && wallJumpAbility)
@@ -325,8 +331,8 @@ public class Player : MonoBehaviour
                 Sleep(Data.dashSleepTime);
 
                 //If not direction pressed, dash forward
-                if (_moveInput != Vector2.zero)
-                    _lastDashDir = _moveInput;
+                if (moveInputX != 0)
+                    _lastDashDir = new Vector2(moveInputX, RB.velocity.y);
                 else
                     _lastDashDir = IsFacingRight ? Vector2.right : Vector2.left;
 
@@ -343,7 +349,7 @@ public class Player : MonoBehaviour
         #endregion
 
         #region SLIDE CHECKS
-        if (CanSlide() && ((LastOnWallLeftTime > 0 && _moveInput.x < 0) || (LastOnWallRightTime > 0 && _moveInput.x > 0)))
+        if (CanSlide() && ((LastOnWallLeftTime > 0 && moveInputX < 0) || (LastOnWallRightTime > 0 && moveInputX> 0)))
             IsSliding = true;
         else
             IsSliding = false;
@@ -357,7 +363,7 @@ public class Player : MonoBehaviour
             {
                 SetGravityScale(0);
             }
-            else if (RB.velocity.y < 0 && _moveInput.y < 0 && !IsGliding)
+            else if (RB.velocity.y < 0 && moveInputY < 0 && !IsGliding)
             {
                 if (fastFallAbility)
                 {
@@ -425,20 +431,13 @@ public class Player : MonoBehaviour
 
     #region INPUT CALLBACKS
     //Methods which whandle input detected in Update()
-    public void OnJumpInput()
-    {
-        LastPressedJumpTime = Data.jumpInputBufferTime;
-    }
 
-    public void OnJumpUpInput()
+    public void Dash(bool dashAbility)
     {
-        if (CanJumpCut() || CanWallJumpCut())
-            _isJumpCut = true;
-    }
-
-    public void OnDashInput()
-    {
-        LastPressedDashTime = Data.dashInputBufferTime;
+        if (InputHandler.instance.controls.Dash.Dash.WasPressedThisFrame() && dashAbility)
+        {
+            LastPressedDashTime = Data.dashInputBufferTime;
+        }  
     }
     public void OnGlideInput()
     {
@@ -448,6 +447,16 @@ public class Player : MonoBehaviour
         }
     }
     #endregion
+    public void Move(bool canMove, bool canRun)
+    {
+        if (canMove)
+        {
+            if (canRun) moveInputX = InputHandler.instance.moveInput.x;
+            else moveInputX = Mathf.Clamp(InputHandler.instance.moveInput.x, -0.1f, 0.1f); ;
+
+            moveInputY = InputHandler.instance.moveInput.y;
+        }
+    }
 
     #region GENERAL METHODS
     public void SetGravityScale(float scale)
@@ -476,7 +485,7 @@ public class Player : MonoBehaviour
     private void Run(float lerpAmount)
     {
         //Calculate the direction we want to move in and our desired velocity
-        float targetSpeed = _moveInput.x * Data.runMaxSpeed;
+        float targetSpeed = moveInputX * Data.runMaxSpeed;
 
         //We can reduce are control using Lerp() this smooths changes to are direction and speed
         targetSpeed = Mathf.Lerp(RB.velocity.x, targetSpeed, lerpAmount);
@@ -549,7 +558,18 @@ public class Player : MonoBehaviour
     #endregion
 
     #region JUMP METHODS
-    private void Jump(float jumpForce)
+    public void Jump(bool canJump)
+    {
+        if (InputHandler.instance.controls.Jump.Jump.WasPressedThisFrame() && canJump)//Button Was pushed down or GetKeyDown
+        {
+            LastPressedJumpTime = Data.jumpInputBufferTime;
+        }
+        if (InputHandler.instance.controls.Jump.Jump.WasReleasedThisFrame() && canJump)//Button is released or GetKeyUp
+        {
+            if (CanJumpCut() || CanWallJumpCut()) _isJumpCut = true;
+        }
+    }
+    private void JumpAbility(float jumpForce)
     {
         //Ensures we can't call Jump multiple times from one press
         LastPressedJumpTime = 0;
@@ -632,7 +652,7 @@ public class Player : MonoBehaviour
 
         //Overall this method of dashing aims to mimic Celeste, if you're looking for
         // a more physics-based approach try a method similar to that used in the jump
-
+        Renderer.sharedMaterial.SetFloat("BlurAmount", 0.0042f);
         LastOnGroundTime = 0;
         LastPressedDashTime = 0;
         float dirx = dir.x;
@@ -668,6 +688,7 @@ public class Player : MonoBehaviour
 
         //Dash over
         IsDashing = false;
+        Renderer.sharedMaterial.SetFloat("BlurAmount", 0f);
 
     }
 
@@ -722,11 +743,11 @@ public class Player : MonoBehaviour
     private void AllowLedgeGrab() => canGrabLedge = true;
     public void CheckDirectionToFace()
     {
-        if(InputHandler.RawMovementInput.x < 0 && IsFacingRight)
+        if (moveInputX < 0 && IsFacingRight)
         {
             Turn();
         }
-        else if(InputHandler.RawMovementInput.x > 0 && !IsFacingRight)
+        else if (moveInputX > 0 && !IsFacingRight)
         {
             Turn();
         }

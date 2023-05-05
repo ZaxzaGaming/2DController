@@ -43,8 +43,11 @@ public class PlayerData : ScriptableObject
 
     [HideInInspector] public float tripleJumpForce; //The actual force applied (upwards) to the player when they triple jump.
     [Range(0.5f, 2)] public float tripleJumpDivider;
+    [Space(20)]
 
-
+    [Header("Jump")]
+    public float attackGravity = 1;
+    [Space(20)]
     [Header("Both Jumps")]
     public float jumpCutGravityMult; //Multiplier to increase gravity if the player releases thje jump button while still jumping
     [Range(0f, 1)] public float jumpHangGravityMult; //Reduces gravity while close to the apex (desired max height) of the jump

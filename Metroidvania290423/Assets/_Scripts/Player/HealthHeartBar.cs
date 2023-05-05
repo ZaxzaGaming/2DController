@@ -42,7 +42,7 @@ public class HealthHeartBar : MonoBehaviour
         GameObject newHeart = Instantiate(heartPrefab);
         newHeart.transform.SetParent(transform);
 
-        HealthDisplay heartComponent = newHeart.GetComponent<HealthDisplay>();
+        HealthDisplay heartComponent = newHeart.GetComponentInChildren<HealthDisplay>();
         heartComponent.SetHeartImage(HeartStatus.Empty);
         hearts.Add(heartComponent);
     }

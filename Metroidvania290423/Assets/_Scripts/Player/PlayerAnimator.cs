@@ -14,8 +14,8 @@ public class PlayerAnimator : MonoBehaviour
     private void Start()
     {
         player = GetComponent<Player>();
-        spriteRend = GetComponentInChildren<SpriteRenderer>();
-        anim = spriteRend.GetComponent<Animator>();
+        spriteRend = GetComponent<SpriteRenderer>();
+        anim = GetComponent<Animator>();
     }
     private void FixedUpdate()
     {

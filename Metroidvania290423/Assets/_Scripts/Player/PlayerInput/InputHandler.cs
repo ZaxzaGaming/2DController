@@ -1,102 +1,44 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 public class InputHandler : MonoBehaviour
 {
-    public Vector2 RawMovementInput { get; private set; }
-    public int NormInputX { get; private set; }
-    public int NormInputY { get; private set; }
-    public bool JumpInput { get; private set; }
-    public bool JumpInputStop { get; private set; }
-    public bool DashInput { get; private set; }
-    public bool DashInputStop { get; private set; }
-    public bool GlideInput { get; private set; }
-    private float jumpInputStartTime;
-    private float dashInputStartTime;
-    private bool AttackInput;
-    private bool AttackHeld;
-  
+    public static InputHandler instance;
+    [HideInInspector] public Controls controls;
+    [HideInInspector] public Vector2 moveInput;
+    [HideInInspector] public bool dashInput;
+    [HideInInspector] public bool glideInput;
+    [HideInInspector] public bool grappleInput;
+    [HideInInspector] public bool attackInput;
+
 
     [SerializeField]
     private float inputHoldTime = 0.5f;
-
-    private void Update()
+    private void Awake()
     {
-        CheckJumpInputHoldTime();
-        CheckDashInputHoldTime();
+        controls = new Controls();
+        if (instance == null)
+        {
+            instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+        controls.Movement.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>(); 
+        controls.Dash.Dash.performed += ctx => dashInput = ctx.performed; 
+        controls.Glide.Glide.performed += ctx => glideInput = ctx.performed; 
+        controls.Grapple.Grapple.performed += ctx => grappleInput = ctx.performed; 
+        controls.Attack1.Attack.performed += ctx => attackInput = ctx.performed; 
     }
-    public void OnMoveInput(InputAction.CallbackContext context)
+    private void OnEnable()
     {
-        RawMovementInput = context.ReadValue<Vector2>();
-        NormInputX = (int)(RawMovementInput * Vector2.right).normalized.x;
-        NormInputY = (int)(RawMovementInput * Vector2.up).normalized.y;
+        controls.Enable();
     }
-    public void OnJumpInput(InputAction.CallbackContext context)
+    private void OnDisable()
     {
-        if (context.started)
-        {
-            JumpInput = true;
-            JumpInputStop = false;
-            jumpInputStartTime = Time.time;
-        }
-  
-        if (context.canceled)
-        {
-            JumpInputStop = true;
-        }
-    }
-    public void OnAttackInput(InputAction.CallbackContext context)
-    {
-        if (context.started)
-        {
-            AttackInput = true;
-        }
-        if (context.canceled)
-        {
-            AttackInput = false;
-            AttackHeld = false;
-        }
-    }
-    public void OnDashInput(InputAction.CallbackContext context)    
-    {
-        if (context.started)
-        {
-            DashInput = true;
-            DashInputStop = false;
-            dashInputStartTime = Time.time;
-        }
-        if (context.canceled)
-        {
-            DashInput = false;
-        }
-    }
-    public void OnGlideInput(InputAction.CallbackContext context)
-    {
-        if (context.started)    
-        {
-            GlideInput = true;
-        }
-        if (context.canceled)
-        {
-            GlideInput = false;
-        }
-    }
-    public void UseJumpInput() => JumpInput = false;
-    public void UseDashInput() => DashInput = false;
-    private void CheckJumpInputHoldTime()
-    {
-        if (Time.time >= jumpInputStartTime + inputHoldTime)
-        {
-            JumpInput = false;
-        }
-    }
-    private void CheckDashInputHoldTime()
-    {
-        if (Time.time >= dashInputStartTime + inputHoldTime)
-        {
-            DashInput = false;
-        }
+        controls.Disable();
     }
 }

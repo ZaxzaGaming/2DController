@@ -37,7 +37,7 @@ public class Pickup : MonoBehaviour
         {
             gameObject.AddComponent<Rigidbody2D>();
             circleCollider = gameObject.AddComponent<CircleCollider2D>();
-            gameObject.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
+            gameObject.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
             rb = GetComponent<Rigidbody2D>();
         }
     }
@@ -62,13 +62,14 @@ public class Pickup : MonoBehaviour
                 Vector2 targetDirection = (targetPossition - transform.position).normalized;
                 rb.velocity = new Vector2(targetDirection.x, targetDirection.y);
                 rb.AddForce(movement * rb.velocity, ForceMode2D.Force);
-                circleCollider.enabled = !circleCollider.enabled;
+               // circleCollider.enabled = !circleCollider.enabled;
 
             }
             else
             {
                 //Drops and stops moving if the player is out of range.
                 rb.velocity = new Vector2(0, rb.velocity.y);
+                circleCollider.enabled = circleCollider.enabled;
             }
         }
     }

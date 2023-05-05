@@ -5,25 +5,33 @@ using UnityEngine.UI;
 
 public class HealthDisplay : MonoBehaviour
 {
-    public Sprite fullHeart, halfHeart, emptyHeart;
+    private RectTransform rect;
+    private Vector2 targetEmpty = new Vector2(-100, 0);
+    private Vector2 targetHalf = new Vector2(-52, 0);
+    private Vector2 targetFull= new Vector2(0, 0);
 
-    Image heartImage;
     private void Awake()
     {
-        heartImage = GetComponent<Image>();
+        rect = GetComponent<RectTransform>();
     }
     public void SetHeartImage(HeartStatus status)
     {
         switch(status)
         {
             case HeartStatus.Empty:
-                heartImage.sprite = emptyHeart;
+                LeanTween.move(rect, targetEmpty, 0.4f);
+                //rect.LeanSetLocalPosX(-104.98f); 
+                //anim.SetInteger("health", (int)HeartStatus.Empty);
                 break;
             case HeartStatus.Half:
-                heartImage.sprite = halfHeart;
+                LeanTween.move(rect, targetHalf, 0.4f);
+                //rect.LeanSetLocalPosX(-52.82f);
+                //anim.SetInteger("health", (int)HeartStatus.Half);
                 break;
             case HeartStatus.Full:
-                heartImage.sprite = fullHeart;
+                LeanTween.move(rect, targetFull, 0.4f);
+                //rect.LeanSetLocalPosX(0f);
+                //anim.SetInteger("health", (int)HeartStatus.Full);
                 break;
         }
     }

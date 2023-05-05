@@ -1,22 +1,41 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using TMPro;
 using UnityEngine;
 
 public class DamageOnCollision : MonoBehaviour
 {
-    public float damageCounter;
+    private SafeGroundSaver safeGroundSaver;
+    private Player player;
+    private PlayerHealth playerHealth;
+    private SafeGroundCheckpointSaver safeGroundCheckpointSaver;
+    private void Start()
+    {
+        player = GameObject.FindGameObjectWithTag("Player").GetComponent<Player>();
+        playerHealth = player.GetComponent<PlayerHealth>();
+        safeGroundSaver = player.GetComponent<SafeGroundSaver>();
+        safeGroundCheckpointSaver = player.GetComponent<SafeGroundCheckpointSaver>();
+        
+    }
     private void OnTriggerStay2D(Collider2D collision)
     { 
         if (collision.gameObject.CompareTag("Player"))
         {
-            damageCounter += Time.deltaTime;
-
-            if (damageCounter >= 0.5)
+            player.isSafe = false;
+            playerHealth.Damage(1, Vector2.up, false);
+            if (player.checkpointSpawning)
             {
-                collision.gameObject.GetComponent<PlayerHealth>().TakeDamage(1);
-                damageCounter = 0;
+                safeGroundCheckpointSaver.WarpPlayerToSafeGround();
             }
-
+            else
+            {
+                safeGroundSaver.WarpPlayerToSafeGround();
+            }
         }
+    }
+    private void OnTriggerExit2D(Collider2D collision)
+    {
+        player.isSafe = true;
     }
 }
